@@ -70,6 +70,9 @@ window.addEventListener("message", (msg: any) => {
         }
         break;
       case "getPlayerOptimized": {
+        // Initialize site before checking readiness.
+        if (site.init) site.init();
+        
         // If site isn't ready, don't bother querying.
         if (!site.ready()) return sendResponse(messageId, defaultPlayer);
         const state = site.info.state();
