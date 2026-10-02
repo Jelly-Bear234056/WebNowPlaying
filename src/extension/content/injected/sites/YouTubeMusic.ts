@@ -24,10 +24,10 @@ const YouTubeMusic: Site = {
 
   init: initPlayer,
 
-  ready: () => {
-    const player = getPlayer();
-    return !!player?.isReady();
-  },
+ready: () => {
+  const player = getPlayer();
+  return !!player;
+},
 
   info: createSiteInfo({
     name: () => "YouTube Music",
@@ -85,21 +85,8 @@ const YouTubeMusic: Site = {
       return 0;
     },
 
-    repeat: () => {
-      const state =
-        document
-          .querySelector("ytmusic-player-bar")
-          ?.getAttribute("repeat-mode");
-
-      switch (state) {
-        case "ONE":
-          return Repeat.ONE;
-        case "ALL":
-          return Repeat.ALL;
-        default:
-          return Repeat.NONE;
-      }
-    },
+    repeat: () => Repeat.NONE,
+   
 
     shuffle: () => false,
   }),
@@ -124,7 +111,7 @@ const YouTubeMusic: Site = {
     skipNext: () => _throw(getPlayer()?.nextVideo)(),
 
     setPosition: (seconds) =>
-      _throw(getPlayer()?.seekTo)(seconds),
+      _throw(getPlayer()?.seekToStreamTime)(seconds),
 
     setVolume: (volume) =>
       _throw(getPlayer()?.setVolume)(volume),
