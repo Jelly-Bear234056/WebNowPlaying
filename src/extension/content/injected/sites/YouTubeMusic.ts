@@ -3,27 +3,13 @@ import { EventError, RatingSystem, Repeat, Site, StateMode } from "../../../type
 import { _throw, createDefaultControls, createSiteInfo, ratingUtils, setRepeat } from "../utils";
 
 let playerApi: any = null;
-let playerApiPromise: Promise<any> | null = null;
 
 const initPlayer = () => {
-  if (playerApi || playerApiPromise) return;
+  const player = document.querySelector<any>("#movie_player");
 
-  const playerBar = document.querySelector<any>("ytmusic-player-bar");
+  if (!player) return;
 
-  if (!playerBar?.resolvePlayerApi) return;
-
-  playerApiPromise = playerBar
-    .resolvePlayerApi()
-    .then((api: any) => {
-      playerApi = api;
-    })
-    .catch((error: any) => {
-      console.error(
-        "[WebNowPlaying] Failed to resolve YouTube Music Player API",
-        error,
-      );
-      playerApiPromise = null;
-    });
+  playerApi = player;
 };
 
 const getPlayer = () => {
