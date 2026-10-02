@@ -6,7 +6,7 @@ let playerApi: any = null;
 
 const initPlayer = () => {
   const player = document.querySelector<any>("#movie_player");
-
+  
   if (!player) return;
 
   playerApi = player;
