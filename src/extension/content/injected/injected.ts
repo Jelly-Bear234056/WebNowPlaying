@@ -50,16 +50,24 @@ const sites = [
   YouTubeEmbeds,
   YouTubeMusic,
 ];
+
 (window as any)._wnp = {};
+
 sites.forEach((site) => {
   (window as any)._wnp[site.info.name().replace(" ", "")] = site;
 });
 
 InjectedUtils.init();
+
 window.addEventListener("message", (msg: any) => {
   if (msg.data.type !== "wnp-message") return;
+
   const { messageId, siteName, func, args } = msg.data;
-  const site: Site | undefined = sites.find((site) => site.info.name() == siteName);
+
+  const site: Site | undefined = sites.find(
+    (site) => site.info.name() == siteName,
+  );
+
   if (!site) return sendResponse(messageId, EventResult.FAILED);
 
   try {
@@ -69,30 +77,62 @@ window.addEventListener("message", (msg: any) => {
           site.init();
         }
         break;
+
       case "getPlayerOptimized": {
         // Initialize site before checking readiness.
-        if (site.init) site.init();
-        
-        // If site isn't ready, don't bother querying.
-        if (!site.ready()) return sendResponse(messageId, defaultPlayer);
+        if (site.init) {
+          site.init();
+        }
+
+        // YouTube Music initializes its player API asynchronously.
+        // Wait briefly for the API to become ready instead of immediately
+        // returning defaultPlayer.
+        if (!site.ready()) {
+          setTimeout(() => {
+            if (!site.ready()) {
+              sendResponse(messageId, defaultPlayer);
+              return;
+            }
+
+            sendResponse(messageId, getPlayer(site));
+          }, 100);
+
+          return;
+        }
+
         const state = site.info.state();
-        if (state != lastState || state == StateMode.PLAYING || firstRequest) {
-          // If PLAYING or state changed OR this is the first request, query all as usual
+
+        if (
+          state != lastState ||
+          state == StateMode.PLAYING ||
+          firstRequest
+        ) {
+          // If PLAYING or state changed OR this is the first request,
+          // query all as usual.
           lastState = state;
           firstRequest = false;
+
           return sendResponse(messageId, getPlayer(site));
         } else {
-          // otherwise, only query every 4th request (1s)
+          // Otherwise, only query every 4th request (1s).
           reqCount++;
-          if (reqCount < 4) return sendResponse(messageId, null);
+
+          if (reqCount < 4) {
+            return sendResponse(messageId, null);
+          }
+
           reqCount = 0;
+
           sendResponse(messageId, getPlayer(site));
         }
+
         break;
       }
+
       case "getPlayer":
         sendResponse(messageId, getPlayer(site));
         break;
+
       default:
         (site.events as any)[func](args);
         sendResponse(messageId, EventResult.SUCCEEDED);
@@ -102,7 +142,11 @@ window.addEventListener("message", (msg: any) => {
     if (err instanceof EventError) {
       sendResponse(messageId, EventResult.FAILED);
     } else {
-      console.error("[WebNowPlaying] Failed to handle event error (2)", err);
+      console.error(
+        "[WebNowPlaying] Failed to handle event error (2)",
+        err,
+      );
+
       sendResponse(messageId, EventResult.FAILED);
     }
   }
@@ -134,10 +178,14 @@ function getPlayer(site: Site) {
     canSetRepeat: site.controls().canSetRepeat,
     canSetShuffle: site.controls().canSetShuffle,
   };
+
   return player;
 }
 
-function sendResponse(messageId: string, returnValue: EventResult | Player | null) {
+function sendResponse(
+  messageId: string,
+  returnValue: EventResult | Player | null,
+) {
   window.postMessage({
     type: "wnp-response",
     messageId,
