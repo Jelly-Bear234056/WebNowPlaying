@@ -1,4 +1,11 @@
-import { EventError, EventResult, Player, Site, StateMode, defaultPlayer } from "../../types";
+import {
+  EventError,
+  EventResult,
+  Player,
+  Site,
+  StateMode,
+  defaultPlayer,
+} from "../../types";
 
 import AppleMusic from "./sites/AppleMusic";
 import Bandcamp from "./sites/Bandcamp";
@@ -68,7 +75,9 @@ window.addEventListener("message", (msg: any) => {
     (site) => site.info.name() == siteName,
   );
 
-  if (!site) return sendResponse(messageId, EventResult.FAILED);
+  if (!site) {
+    return sendResponse(messageId, EventResult.FAILED);
+  }
 
   try {
     switch (func) {
@@ -79,54 +88,14 @@ window.addEventListener("message", (msg: any) => {
         break;
 
       case "getPlayerOptimized": {
-        // Initialize site before checking readiness.
         if (site.init) {
           site.init();
         }
 
-        // YouTube Music initializes its player API asynchronously.
-        // Wait briefly for the API to become ready instead of immediately
-        // returning defaultPlayer.
-        if (!site.ready()) {
-          setTimeout(() => {
-            if (!site.ready()) {
-              sendResponse(messageId, defaultPlayer);
-              return;
-            }
-
-            sendResponse(messageId, getPlayer(site));
-          }, 100);
-
-          return;
-        }
-
-        const state = site.info.state();
-
-        if (
-          state != lastState ||
-          state == StateMode.PLAYING ||
-          firstRequest
-        ) {
-          // If PLAYING or state changed OR this is the first request,
-          // query all as usual.
-          lastState = state;
-          firstRequest = false;
-
-          return sendResponse(messageId, getPlayer(site));
-        } else {
-          // Otherwise, only query every 4th request (1s).
-          reqCount++;
-
-          if (reqCount < 4) {
-            return sendResponse(messageId, null);
-          }
-
-          reqCount = 0;
-
-          sendResponse(messageId, getPlayer(site));
-        }
-
-        break;
+        // Use the same player-reading path as getPlayer.
+        // This is important for YouTube Music because its new
+        // #movie_player API is available synchronously.
+        return sendResponse(messageId, getPlayer(site));
       }
 
       case "getPlayer":
