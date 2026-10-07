@@ -1,20 +1,14 @@
 import { convertTimeToSeconds, getMediaSessionCover } from "../../../../utils/misc";
 import { EventError, RatingSystem, Repeat, Site, StateMode } from "../../../types";
-import { _throw, createDefaultControls, createSiteInfo, ratingUtils, setRepeat } from "../utils";
-
-let playerApi: any = null;
-
-const initPlayer = () => {
-  const player = document.querySelector<any>("#movie_player");
-  
-  if (!player) return;
-
-  playerApi = player;
-};
+import {
+  _throw,
+  createDefaultControls,
+  createSiteInfo,
+  ratingUtils,
+} from "../utils";
 
 const getPlayer = () => {
-  initPlayer();
-  return playerApi;
+  return document.querySelector<any>("#movie_player");
 };
 
 const YouTubeMusic: Site = {
@@ -22,40 +16,61 @@ const YouTubeMusic: Site = {
     getPlayer,
   },
 
-  init: initPlayer,
+  init: () => {
+    // YouTube Music now uses #movie_player instead of
+    // ytmusic-player-bar / resolvePlayerApi.
+  },
 
-ready: () => {
-  const player = getPlayer();
-  return !!player;
-},
+  ready: () => {
+    return !!getPlayer();
+  },
 
   info: createSiteInfo({
     name: () => "YouTube Music",
 
-    title: () => navigator.mediaSession.metadata?.title ?? "",
+    title: () =>
+      navigator.mediaSession.metadata?.title ??
+      getPlayer()?.getVideoData?.()?.title ??
+      "",
 
-    artist: () => navigator.mediaSession.metadata?.artist ?? "",
+    artist: () =>
+      navigator.mediaSession.metadata?.artist ?? "",
 
-    album: () => navigator.mediaSession.metadata?.album ?? "",
+    album: () =>
+      navigator.mediaSession.metadata?.album ?? "",
 
-    cover: () => getMediaSessionCover().split("?")[0],
+    cover: () =>
+      getMediaSessionCover().split("?")[0],
 
     state: () => {
-      const state = getPlayer()?.getPlayerState();
+      const state = getPlayer()?.getPlayerState?.();
 
       switch (state) {
         case 1:
           return StateMode.PLAYING;
+
         case 2:
           return StateMode.PAUSED;
+
         default:
           return StateMode.STOPPED;
       }
     },
 
-    position: () => getPlayer()?.getCurrentTime() ?? 0,
+    position: () =>
+      getPlayer()?.getCurrentTime?.() ?? 0,
 
     duration: () => {
+      const player = getPlayer();
+
+      // Prefer the player API if available.
+      const playerDuration = player?.getDuration?.();
+
+      if (typeof playerDuration === "number" && playerDuration > 0) {
+        return playerDuration;
+      }
+
+      // Fallback to YouTube Music's time display.
       const timeInfo =
         document.querySelector<HTMLElement>(".time-info")?.innerText ??
         "0:00 / 0:00";
@@ -65,7 +80,8 @@ ready: () => {
       return convertTimeToSeconds(duration);
     },
 
-    volume: () => getPlayer()?.getVolume() ?? 100,
+    volume: () =>
+      getPlayer()?.getVolume?.() ?? 100,
 
     rating: () => {
       const likeButtonPressed =
@@ -73,48 +89,77 @@ ready: () => {
           .querySelectorAll(".middle-controls-buttons yt-button-shape")[1]
           ?.getAttribute("aria-pressed") === "true";
 
-      if (likeButtonPressed) return 5;
+      if (likeButtonPressed) {
+        return 5;
+      }
 
       const dislikeButtonPressed =
         document
           .querySelector(".middle-controls-buttons yt-button-shape")
           ?.getAttribute("aria-pressed") === "true";
 
-      if (dislikeButtonPressed) return 1;
+      if (dislikeButtonPressed) {
+        return 1;
+      }
 
       return 0;
     },
 
-    repeat: () => Repeat.NONE,
-   
+    repeat: () => {
+      // Repeat state is currently unavailable from the new
+      // YouTube Music player API.
+      return Repeat.NONE;
+    },
 
     shuffle: () => false,
   }),
 
   events: {
     setState: (state) => {
+      const player = getPlayer();
+
       switch (state) {
         case StateMode.STOPPED:
-          _throw(getPlayer()?.stopVideo)();
+          _throw(player?.stopVideo)();
           break;
+
         case StateMode.PAUSED:
-          _throw(getPlayer()?.pauseVideo)();
+          _throw(player?.pauseVideo)();
           break;
+
         case StateMode.PLAYING:
-          _throw(getPlayer()?.playVideo)();
+          _throw(player?.playVideo)();
           break;
       }
     },
 
-    skipPrevious: () => _throw(getPlayer()?.previousVideo)(),
+    skipPrevious: () => {
+      _throw(getPlayer()?.previousVideo)();
+    },
 
-    skipNext: () => _throw(getPlayer()?.nextVideo)(),
+    skipNext: () => {
+      _throw(getPlayer()?.nextVideo)();
+    },
 
-    setPosition: (seconds) =>
-      _throw(getPlayer()?.seekToStreamTime)(seconds),
+    setPosition: (seconds) => {
+      const player = getPlayer();
 
-    setVolume: (volume) =>
-      _throw(getPlayer()?.setVolume)(volume),
+      if (typeof player?.seekToStreamTime === "function") {
+        player.seekToStreamTime(seconds);
+        return;
+      }
+
+      if (typeof player?.seekTo === "function") {
+        player.seekTo(seconds);
+        return;
+      }
+
+      throw new EventError();
+    },
+
+    setVolume: (volume) => {
+      _throw(getPlayer()?.setVolume)(volume);
+    },
 
     setRating: (rating) => {
       ratingUtils.likeDislike(YouTubeMusic, rating, {
@@ -124,7 +169,9 @@ ready: () => {
               ".middle-controls-buttons button",
             )[1];
 
-          if (!button) throw new EventError();
+          if (!button) {
+            throw new EventError();
+          }
 
           button.click();
         },
@@ -135,37 +182,26 @@ ready: () => {
               ".middle-controls-buttons button",
             );
 
-          if (!button) throw new EventError();
+          if (!button) {
+            throw new EventError();
+          }
 
           button.click();
         },
       });
     },
 
-    setRepeat: (repeat) => {
-      const currentRepeat = YouTubeMusic.info.repeat();
-
-      if (currentRepeat === repeat) return;
-
-      const button =
-        document.querySelector<HTMLButtonElement>(".repeat");
-
-      if (!button) throw new EventError();
-
-      const repeatMap = {
-        [Repeat.NONE]: 0,
-        [Repeat.ALL]: 1,
-        [Repeat.ONE]: 2,
-      };
-
-      setRepeat(button, repeatMap, currentRepeat, repeat);
+    setRepeat: () => {
+      throw new EventError();
     },
 
     setShuffle: () => {
       const button =
         document.querySelector<HTMLButtonElement>(".shuffle");
 
-      if (!button) throw new EventError();
+      if (!button) {
+        throw new EventError();
+      }
 
       button.click();
     },
@@ -174,7 +210,7 @@ ready: () => {
   controls: () =>
     createDefaultControls(YouTubeMusic, {
       ratingSystem: RatingSystem.LIKE_DISLIKE,
-      availableRepeat: Repeat.NONE | Repeat.ALL | Repeat.ONE,
+      availableRepeat: Repeat.NONE,
     }),
 };
 
